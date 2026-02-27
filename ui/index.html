@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
 
-  <!-- 🔴 VERY IMPORTANT: Prevent zoom + keyboard glitches -->
+  <!-- Prevent zoom + keyboard layout break -->
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
@@ -19,175 +19,99 @@
     }
 
     :root {
-      --bg-base:      #0f172a;
-      --bg-sidebar:   #0b1120;
-      --bg-chat:      #111827;
-      --bg-input:     #1e293b;
-      --bg-user-msg:  #1d4ed8;
-      --bg-bot-msg:   #1e293b;
-      --bg-btn:       #1e293b;
-      --bg-btn-hover: #273549;
-      --accent:       #3b82f6;
-      --accent-light: #60a5fa;
+      --bg-base: #0f172a;
+      --bg-sidebar: #0b1120;
+      --bg-chat: #111827;
+      --bg-input: #1e293b;
+      --bg-user-msg: #1d4ed8;
+      --bg-bot-msg: #1e293b;
+      --accent: #3b82f6;
       --text-primary: #f1f5f9;
-      --text-muted:   #94a3b8;
-      --border:       #1e293b;
-      --radius:       12px;
-      --sidebar-w:    280px;
+      --text-muted: #94a3b8;
+      --border: #1e293b;
+      --radius: 12px;
     }
 
     html, body {
       width: 100%;
-      height: auto;
-      min-height: 100%;
-      background: var(--bg-base);
-      color: var(--text-primary);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      overscroll-behavior: none;
-    }
-
-    body {
-      display: flex;
+      height: 100%;
       overflow: hidden;
-    }
-
-    /* ── Sidebar ───────────────────────────────────────── */
-    .sidebar {
-      width: var(--sidebar-w);
-      background: var(--bg-sidebar);
-      border-right: 1px solid var(--border);
-      padding: 24px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    .sidebar-header h1 {
-      font-size: 1.4rem;
-      color: var(--accent-light);
-    }
-
-    .sidebar-header p {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
-
-    .sidebar-section-title {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    .quick-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .quick-btn {
-      background: var(--bg-btn);
-      border: 1px solid var(--border);
+      background: var(--bg-base);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
       color: var(--text-primary);
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-size: 0.83rem;
-      cursor: pointer;
-      text-align: left;
     }
 
-    .quick-btn:hover {
-      background: var(--bg-btn-hover);
-      border-color: var(--accent);
-    }
-
-    .sidebar-footer {
-      margin-top: auto;
-      font-size: 0.72rem;
-      color: var(--text-muted);
-    }
-
-    /* ── Chat Panel ───────────────────────────────────── */
-    .chat-panel {
-      flex: 1;
+    /* ── APP ROOT ───────────────────────── */
+    .app {
+      height: var(--app-height);
       display: flex;
       flex-direction: column;
-      height: var(--app-height);
       background: var(--bg-chat);
     }
 
-    .chat-topbar {
+    /* ── HEADER ─────────────────────────── */
+    .header {
       flex-shrink: 0;
-      padding: 16px 20px;
+      padding: 14px 16px;
+      background: var(--bg-sidebar);
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      gap: 10px;
-      background: var(--bg-sidebar);
+      gap: 8px;
     }
 
-    .status-dot {
+    .dot {
       width: 8px;
       height: 8px;
       background: #22c55e;
       border-radius: 50%;
     }
 
-    .chat-topbar-title {
-      font-weight: 600;
+    /* ── QUICK ACTIONS (ALWAYS VISIBLE) ─── */
+    .quick-actions {
+      flex-shrink: 0;
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      overflow-x: auto;
+      background: var(--bg-chat);
+      border-bottom: 1px solid var(--border);
     }
 
-    .chat-topbar-sub {
-      margin-left: auto;
-      font-size: 0.75rem;
-      color: var(--text-muted);
+    .quick-btn {
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      cursor: pointer;
     }
 
-    /* ── Messages ─────────────────────────────────────── */
+    /* ── MESSAGES ───────────────────────── */
     .messages {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 16px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
       gap: 12px;
-      overscroll-behavior: contain;
     }
 
-    .msg-row {
+    .msg {
       display: flex;
       gap: 8px;
       align-items: flex-end;
     }
 
-    .msg-row.user {
+    .msg.user {
       flex-direction: row-reverse;
     }
 
-    .avatar {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      font-weight: bold;
-    }
-
-    .avatar.bot {
-      background: var(--accent);
-      color: #fff;
-    }
-
-    .avatar.user {
-      background: #4f46e5;
-      color: #fff;
-    }
-
     .bubble {
-      max-width: 70%;
+      max-width: 72%;
       padding: 10px 14px;
       border-radius: var(--radius);
       font-size: 0.88rem;
@@ -196,28 +120,28 @@
       word-break: break-word;
     }
 
-    .msg-row.bot .bubble {
+    .bot .bubble {
       background: var(--bg-bot-msg);
       border-bottom-left-radius: 4px;
     }
 
-    .msg-row.user .bubble {
+    .user .bubble {
       background: var(--bg-user-msg);
       color: #fff;
       border-bottom-right-radius: 4px;
     }
 
-    /* ── Input Bar ────────────────────────────────────── */
+    /* ── INPUT BAR ──────────────────────── */
     .input-bar {
       flex-shrink: 0;
       display: flex;
       gap: 10px;
-      padding: 12px;
+      padding: 10px;
       background: var(--bg-sidebar);
       border-top: 1px solid var(--border);
     }
 
-    .input-bar textarea {
+    textarea {
       flex: 1;
       resize: none;
       border-radius: 10px;
@@ -225,17 +149,16 @@
       background: var(--bg-input);
       color: var(--text-primary);
       padding: 10px 14px;
-      font-size: 16px; /* 🔴 Prevent iOS zoom */
-      line-height: 1.5;
+      font-size: 16px; /* prevents iOS zoom */
       max-height: 120px;
     }
 
-    .input-bar textarea:focus {
+    textarea:focus {
       outline: none;
       border-color: var(--accent);
     }
 
-    .send-btn {
+    button.send {
       width: 42px;
       height: 42px;
       border-radius: 50%;
@@ -244,100 +167,94 @@
       color: #fff;
       cursor: pointer;
     }
-
-    /* ── Mobile ───────────────────────────────────────── */
-    @media (max-width: 640px) {
-      .sidebar {
-        display: none;
-      }
-    }
   </style>
 </head>
 
 <body>
 
-<aside class="sidebar">
-  <div class="sidebar-header">
-    <h1>⚙️ Gear Genix</h1>
-    <p>College Equipment Booking Assistant</p>
+<div class="app">
+  <!-- HEADER -->
+  <div class="header">
+    <div class="dot"></div>
+    <strong>Gear Genix</strong>
   </div>
 
-  <div>
-    <div class="sidebar-section-title">Quick Actions</div>
-    <div class="quick-actions">
-      <button class="quick-btn" onclick="prefill('What equipment do you have?')">📦 List Equipment</button>
-      <button class="quick-btn" onclick="prefill('I want to book equipment')">📅 Book Equipment</button>
-    </div>
+  <!-- QUICK ACTIONS (NEVER HIDDEN) -->
+  <div class="quick-actions">
+    <button class="quick-btn" onclick="prefill('What equipment do you have?')">📦 List Equipment</button>
+    <button class="quick-btn" onclick="prefill('I want to book equipment')">📅 Book</button>
+    <button class="quick-btn" onclick="prefill('Show my bookings')">📋 My Bookings</button>
+    <button class="quick-btn" onclick="prefill('I want to return equipment')">🔄 Return</button>
   </div>
 
-  <div class="sidebar-footer">
-    Tip: Mention equipment, date & time together
-  </div>
-</aside>
-
-<main class="chat-panel">
-  <div class="chat-topbar">
-    <div class="status-dot"></div>
-    <span class="chat-topbar-title">Gear Genix</span>
-    <span class="chat-topbar-sub" id="sessionLabel"></span>
-  </div>
-
+  <!-- MESSAGES -->
   <div class="messages" id="messages"></div>
 
+  <!-- INPUT -->
   <div class="input-bar">
-    <textarea id="input" rows="1" placeholder="Ask me anything…"></textarea>
-    <button class="send-btn" id="sendBtn">➤</button>
+    <textarea id="input" rows="1" placeholder="Ask me about equipment, bookings, availability…"></textarea>
+    <button class="send" onclick="send()">➤</button>
   </div>
-</main>
+</div>
 
 <script>
-  /* ── REAL VIEWPORT HEIGHT (Telegram trick) ───────────── */
+  /* ── FIX MOBILE KEYBOARD GAP ───────── */
   function setAppHeight() {
     const h = window.visualViewport
       ? window.visualViewport.height
       : window.innerHeight;
-
     document.documentElement.style.setProperty('--app-height', h + 'px');
   }
 
   window.addEventListener('resize', setAppHeight);
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', setAppHeight);
-  }
+  window.visualViewport?.addEventListener('resize', setAppHeight);
   setAppHeight();
 
-  /* ── Chat logic (same as before) ─────────────────────── */
+  /* ── CHAT LOGIC ────────────────────── */
   const messages = document.getElementById('messages');
   const input = document.getElementById('input');
 
-  function appendMessage(text, role) {
-    const row = document.createElement('div');
-    row.className = 'msg-row ' + role;
-
-    const av = document.createElement('div');
-    av.className = 'avatar ' + role;
-    av.textContent = role === 'bot' ? '🤖' : 'You';
-
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.innerHTML = text.replace(/\n/g, '<br>');
-
-    row.append(av, bubble);
-    messages.appendChild(row);
+  function addMessage(text, role) {
+    const m = document.createElement('div');
+    m.className = 'msg ' + role;
+    m.innerHTML = `<div class="bubble">${text}</div>`;
+    messages.appendChild(m);
     messages.scrollTop = messages.scrollHeight;
   }
 
-  function prefill(t) {
-    input.value = t;
+  function send() {
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage(text, 'user');
+    input.value = '';
+
+    setTimeout(() => {
+      addMessage('Got it 👍 How can I help next?', 'bot');
+    }, 400);
+  }
+
+  function prefill(text) {
+    input.value = text;
     input.focus();
   }
 
-  window.onload = () => {
-    appendMessage(
-      "👋 Welcome to Gear Genix!\nAsk me about equipment, availability or bookings.",
-      "bot"
-    );
-  };
+  /* ── ORIGINAL WELCOME MESSAGE ──────── */
+  addMessage(
+`👋 Welcome to Gear Genix — College Equipment Booking Assistant!
+
+I can help you:
+• 📦 Check what equipment is available
+• 🔍 Check availability for a time slot
+• 📅 Book equipment for your club
+• 📋 View your club's bookings
+• ❌ Cancel a booking
+• 🔄 Return equipment
+
+Just tell me what you need in plain English!
+Example: "Is the projector free tomorrow 3–5pm?"`,
+  'bot'
+  );
 </script>
 
 </body>

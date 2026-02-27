@@ -25,13 +25,17 @@
       --sidebar-w:    280px;
     }
 
+    html, body {
+      height: 100%;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg-base);
       color: var(--text-primary);
-      height: 100vh;
       display: flex;
       overflow: hidden;
+      overflow-x: hidden;
     }
 
     /* ── Sidebar ─────────────────────────────────────────────────── */
@@ -119,6 +123,9 @@
       align-items: center;
       gap: 10px;
       background: var(--bg-sidebar);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
     .status-dot {
@@ -275,10 +282,9 @@
 
     /* ── Responsive ──────────────────────────────────────────────── */
     @media (max-width: 640px) {
+      /* Allow page to resize and scroll with mobile keyboard */
       body {
-        flex-direction: column;
-        height: 100vh;
-        overflow: hidden;
+        overflow-y: auto;
       }
 
       .sidebar {
@@ -287,6 +293,9 @@
 
       .chat-panel {
         width: 100%;
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
       }
 
       .mobile-quick-actions {
@@ -313,17 +322,18 @@
         font-size: 0.8rem;
       }
 
-      /* keep last messages visible above fixed input bar */
+      /* keep last messages visible above input bar */
       .messages {
-        padding: 12px 12px 90px;
+        padding: 12px 12px 70px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1 1 auto;
+        min-height: 0;
       }
 
-      /* stick input bar to bottom of viewport on mobile */
+      /* input bar sits at bottom of content; browser moves it with keyboard */
       .input-bar {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        position: static;
         padding: 10px 12px;
         border-top: 1px solid var(--border);
         background: var(--bg-sidebar);

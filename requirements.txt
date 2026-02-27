@@ -1,0 +1,8 @@
+openai
+python-telegram-bot
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+alembic
+python-dotenv

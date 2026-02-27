@@ -75,6 +75,10 @@
       gap: 6px;
     }
 
+    .mobile-quick-actions {
+      display: none;
+    }
+
     .quick-btn {
       background: var(--bg-btn);
       border: 1px solid var(--border);
@@ -271,7 +275,33 @@
 
     /* ── Responsive ──────────────────────────────────────────────── */
     @media (max-width: 640px) {
-      .sidebar { display: none; }
+      .sidebar {
+        display: none;
+      }
+
+      .mobile-quick-actions {
+        display: block;
+        padding: 10px 12px 0;
+        background: var(--bg-chat);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .mobile-quick-actions .sidebar-section-title {
+        margin-bottom: 6px;
+      }
+
+      .mobile-quick-actions .quick-actions {
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 8px;
+        gap: 8px;
+      }
+
+      .mobile-quick-actions .quick-btn {
+        white-space: nowrap;
+        flex-shrink: 0;
+        font-size: 0.8rem;
+      }
     }
   </style>
 </head>
@@ -306,6 +336,18 @@
     <div class="status-dot"></div>
     <span class="chat-topbar-title">Gear Genix</span>
     <span class="chat-topbar-sub" id="sessionLabel"></span>
+  </div>
+
+  <!-- Quick action shortcuts for mobile -->
+  <div class="mobile-quick-actions">
+    <div class="sidebar-section-title">Quick Actions</div>
+    <div class="quick-actions">
+      <button class="quick-btn" onclick="prefill('What equipment do you have?')">📦 List Equipment</button>
+      <button class="quick-btn" onclick="prefill('I want to book equipment for my club')">📅 Book Equipment</button>
+      <button class="quick-btn" onclick="prefill('Show bookings for my club')">📋 View My Bookings</button>
+      <button class="quick-btn" onclick="prefill('Show all active bookings')">👁 Active Bookings</button>
+      <button class="quick-btn" onclick="prefill('I want to return equipment for a booking')">🔄 Return Equipment</button>
+    </div>
   </div>
 
   <div class="messages" id="messages"></div>

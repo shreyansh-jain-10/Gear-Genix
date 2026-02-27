@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
 
-  <!-- Prevent zoom + keyboard layout break -->
+  <!-- CRITICAL: stops zoom + layout break -->
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
@@ -43,7 +43,7 @@
 
     /* ── APP ROOT ───────────────────────── */
     .app {
-      height: var(--app-height);
+      height: 100%;
       display: flex;
       flex-direction: column;
       background: var(--bg-chat);
@@ -67,7 +67,7 @@
       border-radius: 50%;
     }
 
-    /* ── QUICK ACTIONS (ALWAYS VISIBLE) ─── */
+    /* ── QUICK ACTIONS (NEVER HIDE) ─────── */
     .quick-actions {
       flex-shrink: 0;
       display: flex;
@@ -89,7 +89,7 @@
       cursor: pointer;
     }
 
-    /* ── MESSAGES ───────────────────────── */
+    /* ── MESSAGES (ONLY SCROLL AREA) ────── */
     .messages {
       flex: 1;
       min-height: 0;
@@ -98,6 +98,7 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      overscroll-behavior: contain;
     }
 
     .msg {
@@ -131,7 +132,7 @@
       border-bottom-right-radius: 4px;
     }
 
-    /* ── INPUT BAR ──────────────────────── */
+    /* ── INPUT BAR (NO FIXED POSITION) ──── */
     .input-bar {
       flex-shrink: 0;
       display: flex;
@@ -149,8 +150,9 @@
       background: var(--bg-input);
       color: var(--text-primary);
       padding: 10px 14px;
-      font-size: 16px; /* prevents iOS zoom */
+      font-size: 16px; /* 🔴 prevents iOS zoom */
       max-height: 120px;
+      line-height: 1.5;
     }
 
     textarea:focus {
@@ -179,7 +181,7 @@
     <strong>Gear Genix</strong>
   </div>
 
-  <!-- QUICK ACTIONS (NEVER HIDDEN) -->
+  <!-- QUICK ACTIONS -->
   <div class="quick-actions">
     <button class="quick-btn" onclick="prefill('What equipment do you have?')">📦 List Equipment</button>
     <button class="quick-btn" onclick="prefill('I want to book equipment')">📅 Book</button>
@@ -192,46 +194,57 @@
 
   <!-- INPUT -->
   <div class="input-bar">
-    <textarea id="input" rows="1" placeholder="Ask me about equipment, bookings, availability…"></textarea>
-    <button class="send" onclick="send()">➤</button>
+    <textarea
+      id="input"
+      rows="1"
+      placeholder="Ask me about equipment, bookings, availability…"
+    ></textarea>
+    <button class="send" id="sendBtn">➤</button>
   </div>
 </div>
 
 <script>
-  /* ── FIX MOBILE KEYBOARD GAP ───────── */
-  function setAppHeight() {
-    const h = window.visualViewport
-      ? window.visualViewport.height
-      : window.innerHeight;
-    document.documentElement.style.setProperty('--app-height', h + 'px');
-  }
+  /* ── SESSION ───────────────────────────── */
+  const sessionId = crypto.randomUUID();
 
-  window.addEventListener('resize', setAppHeight);
-  window.visualViewport?.addEventListener('resize', setAppHeight);
-  setAppHeight();
-
-  /* ── CHAT LOGIC ────────────────────── */
+  /* ── DOM REFS ─────────────────────────── */
   const messages = document.getElementById('messages');
   const input = document.getElementById('input');
+  const sendBtn = document.getElementById('sendBtn');
+
+  /* ── HELPERS ──────────────────────────── */
+  function scrollBottom() {
+    messages.scrollTop = messages.scrollHeight;
+  }
 
   function addMessage(text, role) {
     const m = document.createElement('div');
     m.className = 'msg ' + role;
-    m.innerHTML = `<div class="bubble">${text}</div>`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+
+    m.appendChild(bubble);
     messages.appendChild(m);
-    messages.scrollTop = messages.scrollHeight;
+    scrollBottom();
   }
 
-  function send() {
-    const text = input.value.trim();
-    if (!text) return;
+  function showTyping() {
+    const t = document.createElement('div');
+    t.className = 'msg bot';
+    t.id = 'typing';
+    t.innerHTML = `<div class="bubble">Typing…</div>`;
+    messages.appendChild(t);
+    scrollBottom();
+  }
 
-    addMessage(text, 'user');
-    input.value = '';
-
-    setTimeout(() => {
-      addMessage('Got it 👍 How can I help next?', 'bot');
-    }, 400);
+  function hideTyping() {
+    document.getElementById('typing')?.remove();
   }
 
   function prefill(text) {
@@ -239,7 +252,54 @@
     input.focus();
   }
 
-  /* ── ORIGINAL WELCOME MESSAGE ──────── */
+  /* ── SEND MESSAGE (BACKEND CONNECTED) ─── */
+  async function send() {
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage(text, 'user');
+    input.value = '';
+    sendBtn.disabled = true;
+    showTyping();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          session_id: sessionId
+        })
+      });
+
+      hideTyping();
+
+      if (!res.ok) {
+        addMessage(`⚠️ Server error (${res.status})`, 'bot');
+      } else {
+        const data = await res.json();
+        addMessage(data.response || '(no response)', 'bot');
+      }
+    } catch (err) {
+      hideTyping();
+      addMessage(`⚠️ Network error: ${err.message}`, 'bot');
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  /* ── EVENTS ───────────────────────────── */
+  sendBtn.addEventListener('click', send);
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  /* ── ORIGINAL WELCOME MESSAGE ─────────── */
   addMessage(
 `👋 Welcome to Gear Genix — College Equipment Booking Assistant!
 

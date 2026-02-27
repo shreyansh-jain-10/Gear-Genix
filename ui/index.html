@@ -275,8 +275,18 @@
 
     /* ── Responsive ──────────────────────────────────────────────── */
     @media (max-width: 640px) {
+      body {
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
       .sidebar {
         display: none;
+      }
+
+      .chat-panel {
+        width: 100%;
       }
 
       .mobile-quick-actions {
@@ -301,6 +311,22 @@
         white-space: nowrap;
         flex-shrink: 0;
         font-size: 0.8rem;
+      }
+
+      /* keep last messages visible above fixed input bar */
+      .messages {
+        padding: 12px 12px 90px;
+      }
+
+      /* stick input bar to bottom of viewport on mobile */
+      .input-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 12px;
+        border-top: 1px solid var(--border);
+        background: var(--bg-sidebar);
       }
     }
   </style>

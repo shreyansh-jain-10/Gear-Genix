@@ -1,13 +1,14 @@
 """
-In-memory conversation history management for the AI agent.
+In-memory conversation history and user context management for the AI agent.
 
 Each session (Telegram chat or web UI client) gets its own message list
-stored in the format expected by the OpenAI Chat Completions API.
+stored in the format expected by the OpenAI Chat Completions API, plus
+an optional user context dict that tracks who is logged in.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 Message = Dict[str, Any]
@@ -22,8 +23,11 @@ class ConversationMemory:
     """
 
     def __init__(self) -> None:
-        """Initialise with an empty sessions dict."""
+        """Initialise with empty sessions and user context dicts."""
         self._sessions: Dict[str, List[Message]] = {}
+        self._user_context: Dict[str, Dict[str, Any]] = {}
+
+    # ── Message management ─────────────────────────────────────────────────
 
     def add_message(self, session_id: str, role: str, content: Any) -> None:
         """
@@ -79,12 +83,41 @@ class ConversationMemory:
 
         return list(self._sessions.get(session_id, []))
 
-    def clear_history(self, session_id: str) -> None:
+    def clear_messages(self, session_id: str) -> None:
         """
-        Remove all messages for the given session.
+        Remove message history only, keeping user context intact.
         """
 
         self._sessions.pop(session_id, None)
+
+    def clear_all(self, session_id: str) -> None:
+        """
+        Remove everything for the session (messages + user context).
+        """
+
+        self._sessions.pop(session_id, None)
+        self._user_context.pop(session_id, None)
+
+    # ── User context management ────────────────────────────────────────────
+
+    def set_user_context(self, session_id: str, username: str, club_name: Optional[str], role: str) -> None:
+        """Bind a validated user to this session."""
+
+        self._user_context[session_id] = {
+            "username": username,
+            "club_name": club_name,
+            "role": role,
+        }
+
+    def get_user_context(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Return the user context for this session, or None if not logged in."""
+
+        return self._user_context.get(session_id)
+
+    def is_logged_in(self, session_id: str) -> bool:
+        """Check if the session has a bound user."""
+
+        return session_id in self._user_context
 
 
 # Global singleton used by both the agent and the Telegram bot.

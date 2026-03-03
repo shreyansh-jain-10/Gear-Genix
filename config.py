@@ -33,3 +33,4 @@ def _require(key: str) -> str:
 OPENAI_API_KEY: str = _require("OPENAI_API_KEY")
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()  # optional — bot skipped if absent
 DATABASE_URL: str = _require("DATABASE_URL")
+ADMIN_USERNAME: str = _require("ADMIN_USERNAME")

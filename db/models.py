@@ -52,11 +52,24 @@ class Booking(Base):
 
     club_name = Column(String, nullable=False)
     booked_by = Column(String, nullable=False)
-    telegram_username = Column(String, nullable=False)
-
+    quantity = Column(Integer, nullable=False, default=1)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
 
     status = Column(String, nullable=False, default="active")  # active/returned/cancelled
+    created_at = Column(DateTime, nullable=False, server_default=func.now(), default=datetime.utcnow)
+
+
+class User(Base):
+    """
+    Registered user with a username, club affiliation, and role.
+    """
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, nullable=False, index=True)
+    club_name = Column(String, nullable=True)  # NULL for admin
+    role = Column(String, nullable=False, default="user")  # user / admin
     created_at = Column(DateTime, nullable=False, server_default=func.now(), default=datetime.utcnow)
 

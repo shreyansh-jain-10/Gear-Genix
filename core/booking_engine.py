@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from db.database import get_session
-from db.models import Booking, Equipment
+from db.models import Booking, Equipment, User
 
 
 # ─── Date / time helpers ─────────────────────────────────────────────────────
@@ -76,14 +76,16 @@ def list_equipment() -> str:
 
 
 def check_availability(
-    equipment_name: str, date: str, start_time: str, end_time: str
+    equipment_name: str, date: str, start_time: str, end_time: str,
+    quantity: int = 1,
 ) -> str:
     """
     Check whether a specific piece of equipment is free for a given time slot.
 
     Conflict detection uses the standard interval-overlap condition:
       existing.start_time < new_end AND existing.end_time > new_start
-    with status == 'active'.
+    with status == 'active'.  The quantities of all overlapping bookings
+    are summed to determine how many units remain available in the slot.
     """
 
     try:
@@ -93,6 +95,9 @@ def check_availability(
 
     if end_dt <= start_dt:
         return "End time must be after start time. Please check your time slot."
+
+    if quantity < 1:
+        return "Quantity must be at least 1."
 
     with get_session() as session:
         try:
@@ -106,6 +111,12 @@ def check_availability(
                     "Use list_equipment to see available options."
                 )
 
+            if quantity > equipment.total_quantity:
+                return (
+                    f"❌ Only {equipment.total_quantity} unit(s) of "
+                    f"{equipment.name} exist in total."
+                )
+
             conflict_stmt = (
                 select(Booking)
                 .where(Booking.equipment_id == equipment.id)
@@ -116,24 +127,28 @@ def check_availability(
             )
             conflicts: List[Booking] = list(session.execute(conflict_stmt).scalars())
 
-            # Check available quantity separately (handles multi-unit equipment)
-            if equipment.available_quantity <= 0 and not conflicts:
-                return f"❌ All units of {equipment.name} are currently checked out."
+            total_booked_in_slot = sum(b.quantity for b in conflicts)
+            available_in_slot = equipment.total_quantity - total_booked_in_slot
 
-            if not conflicts:
-                date_label = _fmt_date(start_dt)
+            if available_in_slot <= 0:
+                last_conflict = max(conflicts, key=lambda b: b.end_time)
                 return (
-                    f"✅ {equipment.name} is available on {date_label} "
-                    f"from {_fmt_time(start_dt)}–{_fmt_time(end_dt)}."
+                    f"❌ All {equipment.total_quantity} unit(s) of {equipment.name} "
+                    f"are booked during that time. "
+                    f"Next available after {_fmt_time(last_conflict.end_time)}."
                 )
 
-            # Find next available slot (end of last conflict)
-            last_conflict = max(conflicts, key=lambda b: b.end_time)
-            conflict = conflicts[0]
+            if quantity > available_in_slot:
+                return (
+                    f"❌ Only {available_in_slot} unit(s) of {equipment.name} "
+                    f"available during that time ({total_booked_in_slot} already booked)."
+                )
+
+            date_label = _fmt_date(start_dt)
             return (
-                f"❌ {equipment.name} is booked from {_fmt_time(conflict.start_time)} "
-                f"to {_fmt_time(conflict.end_time)} by {conflict.club_name}. "
-                f"Next available after {_fmt_time(last_conflict.end_time)}."
+                f"✅ {equipment.name} is available on {date_label} "
+                f"from {_fmt_time(start_dt)}–{_fmt_time(end_dt)} "
+                f"({available_in_slot}/{equipment.total_quantity} units free)."
             )
         except Exception as exc:
             return f"Failed to check availability due to an internal error: {exc}"
@@ -169,7 +184,7 @@ def make_booking(
     end_time: str,
     club_name: str,
     booked_by: str,
-    telegram_username: str,
+    quantity: int = 1,
 ) -> str:
     """
     Create a booking for the specified equipment and time slot.
@@ -186,6 +201,9 @@ def make_booking(
     if end_dt <= start_dt:
         return "End time must be after start time. Please check your time slot."
 
+    if quantity < 1:
+        return "Quantity must be at least 1."
+
     with get_session() as session:
         try:
             # Resolve equipment by case-insensitive name.
@@ -199,10 +217,13 @@ def make_booking(
                     "Use list_equipment to see available options."
                 )
 
-            if equipment.available_quantity <= 0:
-                return f"❌ All units of {equipment.name} are currently checked out."
+            if quantity > equipment.total_quantity:
+                return (
+                    f"❌ Only {equipment.total_quantity} unit(s) of "
+                    f"{equipment.name} exist in total."
+                )
 
-            # Overlap conflict check.
+            # Overlap conflict check — sum quantities of all overlapping bookings.
             conflict_stmt = (
                 select(Booking)
                 .where(Booking.equipment_id == equipment.id)
@@ -210,12 +231,15 @@ def make_booking(
                 .where(Booking.start_time < end_dt)
                 .where(Booking.end_time > start_dt)
             )
-            conflict = session.execute(conflict_stmt).scalar_one_or_none()
-            if conflict:
+            conflicts: List[Booking] = list(session.execute(conflict_stmt).scalars())
+            total_booked_in_slot = sum(b.quantity for b in conflicts)
+            available_in_slot = equipment.total_quantity - total_booked_in_slot
+
+            if quantity > available_in_slot:
                 return (
-                    f"❌ {equipment.name} is already booked from "
-                    f"{_fmt_time(conflict.start_time)} to {_fmt_time(conflict.end_time)} "
-                    f"by {conflict.club_name}. Please choose a different time slot."
+                    f"❌ Only {available_in_slot} unit(s) of {equipment.name} "
+                    f"available during that time. Please reduce the quantity "
+                    f"or choose a different time slot."
                 )
 
             booking_id = _generate_booking_id(session)
@@ -225,13 +249,13 @@ def make_booking(
                 equipment_id=equipment.id,
                 club_name=club_name,
                 booked_by=booked_by,
-                telegram_username=telegram_username,
+                quantity=quantity,
                 start_time=start_dt,
                 end_time=end_dt,
                 status="active",
             )
             session.add(booking)
-            equipment.available_quantity -= 1
+            equipment.available_quantity -= quantity
             session.commit()
 
             eq_name = equipment.name  # capture before session closes
@@ -244,12 +268,12 @@ def make_booking(
     return (
         f"✅ Booking Confirmed!\n"
         f"─────────────────────\n"
-        f"Equipment : {eq_name}\n"
+        f"Equipment : {eq_name} x{quantity}\n"
         f"Club      : {club_name}\n"
         f"Date      : {date_label}\n"
         f"Time      : {_fmt_time(start_dt)} – {_fmt_time(end_dt)}\n"
         f"Booking ID: {booking_id}\n"
-        f"Contact   : {booked_by} ({telegram_username})\n"
+        f"Contact   : {booked_by}\n"
         f"─────────────────────\n"
         f"Save your Booking ID — you will need it to cancel or return."
     )
@@ -281,14 +305,52 @@ def get_bookings(club_name: str) -> str:
             for b in bookings:
                 date_label = b.start_time.strftime("%-d %b")
                 lines.append(
-                    f"{b.booking_id} | {b.equipment.name} | {date_label} | "
-                    f"{_fmt_time(b.start_time)}–{_fmt_time(b.end_time)}"
+                    f"{b.equipment.name} x{b.quantity} | {date_label} | "
+                    f"{_fmt_time(b.start_time)}–{_fmt_time(b.end_time)} | {b.booked_by}"
                 )
             lines.append("─────────────────────")
             return "\n".join(lines)
 
         except Exception as exc:
             return f"Failed to fetch bookings due to an internal error: {exc}"
+
+
+def get_booking_history(club_name: str) -> str:
+    """
+    Fetch past (returned/cancelled) bookings for a given club.
+
+    Uses a case-insensitive partial match on club_name.
+    """
+
+    with get_session() as session:
+        try:
+            stmt = (
+                select(Booking)
+                .options(selectinload(Booking.equipment))
+                .join(Equipment)
+                .where(Booking.club_name.ilike(f"%{club_name}%"))
+                .where(Booking.status.in_(["returned", "cancelled"]))
+                .order_by(Booking.start_time.desc())
+            )
+            bookings: List[Booking] = list(session.execute(stmt).scalars())
+
+            if not bookings:
+                return f"No past bookings found for {club_name}."
+
+            lines = [f"📜 Booking History for {club_name}:", "─────────────────────"]
+            for b in bookings:
+                date_label = b.start_time.strftime("%-d %b")
+                status_icon = "🔄" if b.status == "returned" else "❌"
+                lines.append(
+                    f"{status_icon} {b.equipment.name} x{b.quantity} | {date_label} | "
+                    f"{_fmt_time(b.start_time)}–{_fmt_time(b.end_time)} | "
+                    f"{b.booked_by} | {b.status}"
+                )
+            lines.append("─────────────────────")
+            return "\n".join(lines)
+
+        except Exception as exc:
+            return f"Failed to fetch booking history due to an internal error: {exc}"
 
 
 def cancel_booking(booking_id: str) -> str:
@@ -299,11 +361,11 @@ def cancel_booking(booking_id: str) -> str:
     with get_session() as session:
         try:
             stmt = select(Booking).where(
-                func.upper(Booking.booking_id) == booking_id.upper()
+                Booking.booking_id == booking_id.strip()
             )
             booking = session.execute(stmt).scalar_one_or_none()
             if not booking:
-                return f"Booking {booking_id} not found."
+                return f"Booking {booking_id} not found. Please provide the exact Booking ID (e.g. B006)."
 
             if booking.status != "active":
                 return (
@@ -316,7 +378,7 @@ def cancel_booking(booking_id: str) -> str:
 
             booking.status = "cancelled"
             if equipment:
-                equipment.available_quantity += 1
+                equipment.available_quantity += booking.quantity
             session.commit()
 
             eq_name = equipment.name if equipment else "the equipment"
@@ -327,7 +389,7 @@ def cancel_booking(booking_id: str) -> str:
 
     return (
         f"✅ Booking {booking_id} has been cancelled. "
-        f"{eq_name} is now available."
+        f"{booking.quantity} unit(s) of {eq_name} released."
     )
 
 
@@ -339,11 +401,11 @@ def return_equipment(booking_id: str) -> str:
     with get_session() as session:
         try:
             stmt = select(Booking).where(
-                func.upper(Booking.booking_id) == booking_id.upper()
+                Booking.booking_id == booking_id.strip()
             )
             booking = session.execute(stmt).scalar_one_or_none()
             if not booking:
-                return f"Booking {booking_id} not found."
+                return f"Booking {booking_id} not found. Please provide the exact Booking ID (e.g. B006)."
 
             if booking.status != "active":
                 return f"Booking {booking_id} is already {booking.status}."
@@ -353,7 +415,7 @@ def return_equipment(booking_id: str) -> str:
 
             booking.status = "returned"
             if equipment:
-                equipment.available_quantity += 1
+                equipment.available_quantity += booking.quantity
             session.commit()
 
             eq_name = equipment.name if equipment else "the equipment"
@@ -365,7 +427,7 @@ def return_equipment(booking_id: str) -> str:
     return (
         f"✅ Equipment returned successfully. "
         f"Booking {booking_id} marked as returned. "
-        f"{eq_name} is back in the pool."
+        f"{booking.quantity} unit(s) of {eq_name} back in the pool."
     )
 
 
@@ -392,11 +454,109 @@ def get_active_bookings() -> str:
             for b in bookings:
                 date_label = b.start_time.strftime("%-d %b")
                 lines.append(
-                    f"{b.booking_id} | {b.equipment.name} | {b.club_name} | "
-                    f"{b.booked_by} | {date_label} {_fmt_time(b.start_time)}–{_fmt_time(b.end_time)}"
+                    f"{b.equipment.name} x{b.quantity} | {b.club_name} | "
+                    f"{date_label} | {_fmt_time(b.start_time)}–{_fmt_time(b.end_time)} | {b.booked_by}"
                 )
             lines.append("─────────────────────")
             return "\n".join(lines)
 
         except Exception as exc:
             return f"Failed to fetch active bookings due to an internal error: {exc}"
+
+
+def get_all_booking_history() -> str:
+    """
+    Retrieve past (returned/cancelled) bookings across all clubs.
+    """
+
+    with get_session() as session:
+        try:
+            stmt = (
+                select(Booking)
+                .options(selectinload(Booking.equipment))
+                .join(Equipment)
+                .where(Booking.status.in_(["returned", "cancelled"]))
+                .order_by(Booking.start_time.desc())
+            )
+            bookings: List[Booking] = list(session.execute(stmt).scalars())
+
+            if not bookings:
+                return "No past bookings found."
+
+            lines = ["📜 All Booking History:", "─────────────────────"]
+            for b in bookings:
+                date_label = b.start_time.strftime("%-d %b")
+                status_icon = "🔄" if b.status == "returned" else "❌"
+                lines.append(
+                    f"{status_icon} {b.equipment.name} x{b.quantity} | {b.club_name} | "
+                    f"{date_label} | {_fmt_time(b.start_time)}–{_fmt_time(b.end_time)} | "
+                    f"{b.booked_by} | {b.status}"
+                )
+            lines.append("─────────────────────")
+            return "\n".join(lines)
+
+        except Exception as exc:
+            return f"Failed to fetch all booking history due to an internal error: {exc}"
+
+
+# ─── User management ────────────────────────────────────────────────────────
+
+
+def lookup_user(username: str) -> dict | None:
+    """Look up a user by username (case-insensitive). Returns info dict or None."""
+
+    with get_session() as session:
+        stmt = select(User).where(func.lower(User.username) == username.strip().lower())
+        user = session.execute(stmt).scalar_one_or_none()
+        if not user:
+            return None
+        return {
+            "username": user.username,
+            "club_name": user.club_name,
+            "role": user.role,
+        }
+
+
+def add_user(username: str, club_name: str) -> str:
+    """Add a new regular user assigned to a club."""
+
+    with get_session() as session:
+        try:
+            stmt = select(User).where(func.lower(User.username) == username.strip().lower())
+            existing = session.execute(stmt).scalar_one_or_none()
+            if existing:
+                return (
+                    f"User '{existing.username}' already exists "
+                    f"(club: {existing.club_name or 'N/A'}, role: {existing.role})."
+                )
+
+            new_user = User(
+                username=username.strip(),
+                club_name=club_name.strip(),
+                role="user",
+            )
+            session.add(new_user)
+            session.commit()
+            return f"✅ User '{username.strip()}' added and assigned to {club_name.strip()}."
+        except Exception as exc:
+            session.rollback()
+            return f"Failed to add user: {exc}"
+
+
+def remove_user(username: str) -> str:
+    """Remove a user by username. Cannot remove admin users."""
+
+    with get_session() as session:
+        try:
+            stmt = select(User).where(func.lower(User.username) == username.strip().lower())
+            user = session.execute(stmt).scalar_one_or_none()
+            if not user:
+                return f"User '{username}' not found."
+            if user.role == "admin":
+                return f"Cannot remove admin user '{user.username}'."
+            session.delete(user)
+            session.commit()
+            return f"✅ User '{user.username}' has been removed."
+        except Exception as exc:
+            session.rollback()
+            return f"Failed to remove user: {exc}"

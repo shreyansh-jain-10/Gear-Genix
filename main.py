@@ -16,7 +16,7 @@ import threading
 
 import uvicorn
 
-from db.seed import init_db, seed_equipment
+from db.seed import init_db, seed_equipment, seed_admin_user
 
 
 logging.basicConfig(
@@ -55,6 +55,8 @@ def main() -> None:
         print("📦 Database initialised")
         seed_equipment()
         print("🌱 Seed data loaded")
+        seed_admin_user()
+        print("🔐 Admin user seeded")
     except Exception as exc:
         print(f"❌ Database error: {exc}")
         print("   Check that PostgreSQL is running and DATABASE_URL is correct.")

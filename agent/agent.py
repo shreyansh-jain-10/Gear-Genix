@@ -1,10 +1,12 @@
 """
-Core AI agent implementation using OpenAI GPT-4o-mini with function calling.
+Core AI agent implementation using OpenAI GPT-5.2 with function calling.
 
 EquipmentBookingAgent follows the ReAct pattern: it calls tools, observes
 their results, and produces a final natural-language response.  Today's date
 is injected dynamically into the system prompt on every turn so the model
 can resolve relative dates correctly.
+
+Sessions require username-based login before the normal chat loop begins.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from agent.memory import ConversationMemory, memory as global_memory
 from agent.prompts import SYSTEM_PROMPT
 from agent.tool_executor import ToolExecutor
 from agent.tools import TOOLS
+from core.booking_engine import lookup_user
 
 
 logger = logging.getLogger(__name__)
@@ -37,52 +40,137 @@ class EquipmentBookingAgent:
         self.client = OpenAI(api_key=config.OPENAI_API_KEY)
         self.memory: ConversationMemory = global_memory
         self.tool_executor = ToolExecutor()
-        self.model = "gpt-4o"
+        self.model = "gpt-5.2"
         self.max_tool_iterations = 10
 
-    def _build_system_message(self) -> Dict[str, Any]:
+    def _build_system_message(self, session_id: str) -> Dict[str, Any]:
         """
-        Build the system message with today's date injected dynamically.
-
-        The date is appended on every call so the model always knows the
-        current date when resolving relative expressions like 'tomorrow'.
+        Build the system message with today's date and user context injected.
         """
 
         now = datetime.now()
         date_str = now.strftime("%A, %d %B %Y")
         time_str = now.strftime("%I:%M %p").lstrip("0")
+
+        user_ctx = self.memory.get_user_context(session_id)
+        user_info_block = ""
+        if user_ctx:
+            if user_ctx["role"] == "admin":
+                user_info_block = (
+                    f"\n\nLOGGED-IN USER: {user_ctx['username']} (ADMIN)"
+                    "\nThis user is an admin with full access to all operations."
+                    "\nThey can add users, remove users, and manage all bookings."
+                    "\nWhen admin wants to book, they must specify the club name."
+                )
+            else:
+                club = user_ctx["club_name"]
+                user_info_block = (
+                    f"\n\nLOGGED-IN USER: {user_ctx['username']} (Club: {club})"
+                    f"\nThis user can ONLY make/cancel/return bookings for {club}."
+                    f"\nAutomatically use '{club}' as the club name for their bookings — do NOT ask."
+                    f"\nThey can view all active bookings but can only view history for {club}."
+                )
+
         return {
             "role": "system",
             "content": (
                 SYSTEM_PROMPT
                 + f"\n\nCurrent date: {date_str}"
                 + f"\nCurrent time: {time_str}"
-                + "\n\nIMPORTANT: Always call list_equipment when asked about available "
-                  "equipment or inventory — never answer from conversation history as "
-                  "availability changes with every booking and return."
+                + user_info_block
+                + "\n\nIMPORTANT: Always call the appropriate tool (list_equipment, "
+                  "get_bookings, get_active_bookings, check_availability) when the user "
+                  "asks about equipment, bookings, or availability — NEVER answer from "
+                  "conversation history as data changes with every booking, cancellation, "
+                  "and return."
             ),
         }
+
+    # ── Login flow ─────────────────────────────────────────────────────────
+
+    def _handle_login(self, session_id: str, user_message: str) -> str:
+        """Handle the login flow before normal chat begins."""
+
+        history = self.memory.get_history(session_id)
+
+        # First message in this session — greet and ask for username
+        if len(history) == 0:
+            greeting = (
+                "👋 Welcome to Gear Genix!\n"
+                "I need to verify your identity first.\n"
+                "Please enter your username:"
+            )
+            self.memory.add_message(session_id, "user", user_message)
+            self.memory.add_message(session_id, "assistant", greeting)
+            return greeting
+
+        # Subsequent messages — treat as username attempt
+        username = user_message.strip()
+        user_info = lookup_user(username)
+
+        if user_info is None:
+            error_msg = (
+                f"Username '{username}' not found.\n"
+                "Please check your username or contact the admin to get registered."
+            )
+            self.memory.add_message(session_id, "user", user_message)
+            self.memory.add_message(session_id, "assistant", error_msg)
+            return error_msg
+
+        # Valid user — bind to session and clear login conversation
+        self.memory.set_user_context(
+            session_id,
+            username=user_info["username"],
+            club_name=user_info["club_name"],
+            role=user_info["role"],
+        )
+        self.memory.clear_messages(session_id)
+
+        if user_info["role"] == "admin":
+            welcome = (
+                f"Welcome, {user_info['username']}! You are logged in as admin.\n"
+                "You have full access to all operations including managing users.\n"
+                "How can I help you today?"
+            )
+        else:
+            welcome = (
+                f"Welcome, {user_info['username']}! "
+                f"You are a member of {user_info['club_name']}.\n"
+                "How can I help you today?"
+            )
+
+        self.memory.add_message(session_id, "assistant", welcome)
+        return welcome
+
+    # ── Main chat loop ─────────────────────────────────────────────────────
 
     def chat(self, session_id: str, user_message: str) -> str:
         """
         Process a user message and return the agent's natural-language reply.
 
-        Implements the full ReAct loop:
-        1. Add user message to memory.
-        2. Build message list (fresh system prompt + history).
-        3. Call OpenAI API.
-        4. If finish_reason == 'tool_calls': execute tools, add results, repeat.
-        5. If finish_reason == 'stop': return the assistant's text.
+        Implements login gate + full ReAct loop:
+        1. If not logged in, handle login flow.
+        2. Add user message to memory.
+        3. Build message list (fresh system prompt + history).
+        4. Call OpenAI API.
+        5. If finish_reason == 'tool_calls': execute tools, add results, repeat.
+        6. If finish_reason == 'stop': return the assistant's text.
         """
 
         if not user_message:
             return "Please send a message so I can help you."
 
+        # Login gate
+        if not self.memory.is_logged_in(session_id):
+            return self._handle_login(session_id, user_message)
+
         self.memory.add_message(session_id, "user", user_message)
+
+        user_ctx = self.memory.get_user_context(session_id)
 
         for iteration in range(self.max_tool_iterations):
             messages: List[Dict[str, Any]] = [
-                self._build_system_message()
+                self._build_system_message(session_id)
             ] + self.memory.get_history(session_id)
 
             try:
@@ -95,8 +183,7 @@ class EquipmentBookingAgent:
             except Exception as exc:
                 logger.exception("OpenAI API call failed")
                 error_msg = (
-                    "⚠️ I'm having trouble connecting to my AI backend right now. "
-                    "Please try again in a moment."
+                    "I'm having trouble right now. Please try again in a moment."
                 )
                 self.memory.add_message(session_id, "assistant", error_msg)
                 return error_msg
@@ -136,7 +223,7 @@ class EquipmentBookingAgent:
                         arguments = {}
 
                     logger.info("Executing tool: %s with args: %s", tool_name, arguments)
-                    result = self.tool_executor.execute(tool_name, arguments)
+                    result = self.tool_executor.execute(tool_name, arguments, user_context=user_ctx)
                     logger.info("Tool result: %s", result[:200])
 
                     self.memory.add_tool_result(session_id, tool_call.id, result)

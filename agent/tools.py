@@ -53,6 +53,10 @@ TOOLS: List[Dict[str, Any]] = [
                         "type": "string",
                         "description": "End time in HH:MM 24-hour format.",
                     },
+                    "quantity": {
+                        "type": "integer",
+                        "description": "Number of units to check availability for. Defaults to 1 if not specified.",
+                    },
                 },
                 "required": ["equipment_name", "date", "start_time", "end_time"],
             },
@@ -64,7 +68,7 @@ TOOLS: List[Dict[str, Any]] = [
             "name": "make_booking",
             "description": (
                 "Create a new equipment booking after confirming availability. "
-                "Requires all 7 parameters. Always call check_availability first."
+                "Always call check_availability first."
             ),
             "parameters": {
                 "type": "object",
@@ -93,9 +97,9 @@ TOOLS: List[Dict[str, Any]] = [
                         "type": "string",
                         "description": "Full name of the person responsible for the booking.",
                     },
-                    "telegram_username": {
-                        "type": "string",
-                        "description": "Telegram username (with or without @) of the contact person.",
+                    "quantity": {
+                        "type": "integer",
+                        "description": "Number of units to book. Defaults to 1 if not specified.",
                     },
                 },
                 "required": [
@@ -105,7 +109,6 @@ TOOLS: List[Dict[str, Any]] = [
                     "end_time",
                     "club_name",
                     "booked_by",
-                    "telegram_username",
                 ],
             },
         },
@@ -130,6 +133,23 @@ TOOLS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "get_booking_history",
+            "description": "Get past bookings (returned or cancelled) for a specific club. Use this when the user asks for booking history or past bookings.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "club_name": {
+                        "type": "string",
+                        "description": "Name of the club whose past bookings should be listed.",
+                    },
+                },
+                "required": ["club_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "cancel_booking",
             "description": "Cancel an active booking using its Booking ID.",
             "parameters": {
@@ -137,7 +157,7 @@ TOOLS: List[Dict[str, Any]] = [
                 "properties": {
                     "booking_id": {
                         "type": "string",
-                        "description": "Booking ID in the format B001, B002, etc.",
+                        "description": "The EXACT Booking ID as provided by the user (e.g. B006). Do NOT modify, reformat, or guess — pass it exactly as the user typed it.",
                     },
                 },
                 "required": ["booking_id"],
@@ -154,7 +174,7 @@ TOOLS: List[Dict[str, Any]] = [
                 "properties": {
                     "booking_id": {
                         "type": "string",
-                        "description": "Booking ID in the format B001, B002, etc.",
+                        "description": "The EXACT Booking ID as provided by the user (e.g. B006). Do NOT modify, reformat, or guess — pass it exactly as the user typed it.",
                     },
                 },
                 "required": ["booking_id"],
@@ -173,6 +193,65 @@ TOOLS: List[Dict[str, Any]] = [
                 "type": "object",
                 "properties": {},
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_all_booking_history",
+            "description": (
+                "Get past bookings (returned or cancelled) across all clubs. "
+                "Admin only. Use when user asks for booking history of all clubs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_user",
+            "description": (
+                "Add a new user to the system with a username and club assignment. "
+                "Admin only."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "description": "The username for the new user.",
+                    },
+                    "club_name": {
+                        "type": "string",
+                        "description": "The club to assign the user to.",
+                    },
+                },
+                "required": ["username", "club_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remove_user",
+            "description": (
+                "Remove an existing user from the system. Admin only. "
+                "Cannot remove admin users."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "description": "The username to remove.",
+                    },
+                },
+                "required": ["username"],
             },
         },
     },

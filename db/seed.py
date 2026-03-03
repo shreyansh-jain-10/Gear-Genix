@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from typing import List, Dict
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from db.database import Base, engine, get_session
-from db.models import Equipment
+import config
+from db.models import Booking, Equipment, User
 
 
 SEED_EQUIPMENT: List[Dict[str, object]] = [
@@ -62,6 +63,46 @@ def seed_equipment() -> None:
                 )
                 session.add(equipment)
 
+            # If there are no active bookings, reset availability to total
+            # so stale counts from dropped/cleared bookings don't persist.
+            active_count = session.execute(
+                select(func.count()).select_from(Booking).where(Booking.status == "active")
+            ).scalar()
+            if active_count == 0:
+                all_equipment = list(session.execute(select(Equipment)).scalars())
+                for eq in all_equipment:
+                    eq.available_quantity = eq.total_quantity
+
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+
+def seed_admin_user() -> None:
+    """
+    Ensure the admin user from ADMIN_USERNAME env var exists.
+
+    Idempotent: updates role to admin if the username exists but isn't admin.
+    """
+
+    with get_session() as session:
+        try:
+            stmt = select(User).where(User.username == config.ADMIN_USERNAME)
+            existing = session.execute(stmt).scalar_one_or_none()
+            if existing:
+                if existing.role != "admin":
+                    existing.role = "admin"
+                    existing.club_name = None
+                    session.commit()
+                return
+
+            admin = User(
+                username=config.ADMIN_USERNAME,
+                club_name=None,
+                role="admin",
+            )
+            session.add(admin)
             session.commit()
         except Exception:
             session.rollback()

@@ -64,7 +64,7 @@ class ToolExecutor:
         # ── Regular user restrictions ──────────────────────────────────────
 
         # User management is admin-only
-        if tool_name in ("add_user", "remove_user"):
+        if tool_name in ("add_user", "remove_user", "list_users"):
             return "Only admins can manage users. Please contact your admin."
 
         # All-clubs booking history is admin-only
@@ -167,6 +167,9 @@ class ToolExecutor:
 
             if tool_name == "get_all_booking_history":
                 return booking_engine.get_all_booking_history()
+
+            if tool_name == "list_users":
+                return booking_engine.list_users()
 
             if tool_name == "add_user":
                 return booking_engine.add_user(

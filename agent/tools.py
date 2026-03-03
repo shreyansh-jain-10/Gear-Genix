@@ -238,6 +238,20 @@ TOOLS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "list_users",
+            "description": (
+                "List all users in the system with their club and role. Admin only."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "remove_user",
             "description": (
                 "Remove an existing user from the system. Admin only. "

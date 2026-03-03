@@ -30,7 +30,8 @@ You can help users with:
 7. Marking equipment as returned using its Booking ID
 8. Viewing all active bookings across all clubs
 9. Viewing past booking history across all clubs (admin only)
-10. Adding or removing users (admin only)
+10. Listing all users in the system (admin only)
+11. Adding or removing users (admin only)
 
 ACCESS CONTROL:
 The logged-in user's identity and role are provided in the system message.

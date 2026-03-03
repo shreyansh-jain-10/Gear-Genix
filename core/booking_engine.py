@@ -543,6 +543,26 @@ def add_user(username: str, club_name: str) -> str:
             return f"Failed to add user: {exc}"
 
 
+def list_users() -> str:
+    """List all users in the system. Admin only."""
+
+    with get_session() as session:
+        try:
+            stmt = select(User).order_by(User.role, User.username)
+            users = session.execute(stmt).scalars().all()
+            if not users:
+                return "No users found in the system."
+
+            lines = [f"📋 All Users ({len(users)} total)", "─────────────────────"]
+            for u in users:
+                club_display = u.club_name or "N/A"
+                lines.append(f"  {u.username}  |  Club: {club_display}  |  Role: {u.role}")
+            lines.append("─────────────────────")
+            return "\n".join(lines)
+        except Exception as exc:
+            return f"Failed to list users: {exc}"
+
+
 def remove_user(username: str) -> str:
     """Remove a user by username. Cannot remove admin users."""
 

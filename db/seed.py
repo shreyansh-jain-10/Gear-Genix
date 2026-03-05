@@ -9,11 +9,48 @@ from __future__ import annotations
 
 from typing import List, Dict
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text, inspect
 
 from db.database import Base, engine, get_session
 import config
 from db.models import Booking, Equipment, User
+
+
+def _add_missing_columns() -> None:
+    """
+    Inspect existing tables and ALTER TABLE to add any columns defined in
+    the ORM models that are missing from the live database schema.
+
+    This bridges the gap left by create_all(), which only creates new tables
+    but never alters existing ones.
+    """
+
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table_name, table in Base.metadata.tables.items():
+            if not inspector.has_table(table_name):
+                continue  # create_all() will handle brand-new tables
+
+            existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+            for col in table.columns:
+                if col.name in existing_cols:
+                    continue
+
+                # Build a portable column type string
+                col_type = col.type.compile(dialect=engine.dialect)
+                parts = [f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}"]
+
+                if col.default is not None:
+                    default_val = col.default.arg
+                    if callable(default_val):
+                        default_val = default_val(None)
+                    parts.append(f"DEFAULT {default_val!r}")
+
+                if not col.nullable and col.default is not None:
+                    parts.append("NOT NULL")
+
+                stmt = " ".join(parts)
+                conn.execute(text(stmt))
 
 
 SEED_EQUIPMENT: List[Dict[str, object]] = [
@@ -37,6 +74,7 @@ def init_db() -> None:
     """
 
     Base.metadata.create_all(bind=engine)
+    _add_missing_columns()
 
 
 def seed_equipment() -> None:

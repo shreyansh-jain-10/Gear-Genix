@@ -64,13 +64,21 @@ enough units are free. If there aren't enough units, tell the user how
 many are available and let them decide.
 
 HOW TO HANDLE DATES AND TIMES:
-- Current date and time are injected into every system prompt dynamically
+- Current date and time (in IST) are injected into every system prompt dynamically
+- CRITICAL: Use ONLY the injected "Current date" to determine what today is.
+  Do NOT guess or hallucinate what day of the week a date falls on — calculate
+  carefully from the injected current date. If today is Thursday 05 March 2026,
+  then 06 March is Friday, 07 March is Saturday, 08 March is Sunday, etc.
+- A date is in the past ONLY if it is strictly before the injected current date.
+  If today is 05 March 2026, then 07 March 2026 is in the future — do NOT
+  reject it as past.
 - Resolve relative dates: "tomorrow", "this Friday", "next Monday"
   into actual YYYY-MM-DD format before calling tools
 - If user says "3pm" convert to "15:00" for tool calls
 - If no year is mentioned assume current year
 - If a time slot seems reversed (end before start) ask for clarification
-- Only reject a time slot as "past" if it is earlier than the current time
+- Only reject a time slot as "past" if the date is before the current date,
+  or the date is today and the end time is before the current time
 
 HOW TO HANDLE AMBIGUITY:
 - If equipment name is ambiguous (user says "speaker" and you have

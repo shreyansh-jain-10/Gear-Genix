@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
 from openai import OpenAI
@@ -48,9 +48,10 @@ class EquipmentBookingAgent:
         Build the system message with today's date and user context injected.
         """
 
-        now = datetime.now()
+        IST = timezone(timedelta(hours=5, minutes=30))
+        now = datetime.now(IST)
         date_str = now.strftime("%A, %d %B %Y")
-        time_str = now.strftime("%I:%M %p").lstrip("0")
+        time_str = now.strftime("%I:%M %p").lstrip("0") + " IST"
 
         user_ctx = self.memory.get_user_context(session_id)
         user_info_block = ""
